@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#030b18" />
+    <meta name="description" content="Lumina Tide — a bioluminescent arcade game about flow, focus, and light." />
+    <title>Lumina Tide — Arcade in the Deep</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23030b18'/%3E%3Cpath d='M13 34c8-16 30-16 38 0-8 12-30 12-38 0Z' fill='%237cffe1'/%3E%3Ccircle cx='38' cy='31' r='3' fill='%23030b18'/%3E%3Cpath d='M15 34 7 25v18Z' fill='%23ffcf67'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <canvas id="game-canvas" aria-label="Lumina Tide game field"></canvas>
+    <div class="water-light" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <button class="brand" id="home-button" type="button" aria-label="Return to title">
+          <span class="brand-glyph" aria-hidden="true"><i></i></span>
+          <span>Lumina Tide</span>
+          <span class="edition">Dive 01</span>
+        </button>
+
+        <div class="scoreboard" aria-live="polite">
+          <div><span>Score</span><strong id="score">000000</strong></div>
+          <div><span>Best</span><strong id="high-score">000000</strong></div>
+        </div>
+
+        <div class="top-actions">
+          <button class="icon-button" id="sound-button" type="button" aria-label="Turn sound on" aria-pressed="false">
+            <svg class="sound-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9v6h4l5 4V5L9 9H5Z"/><path d="M17 8a6 6 0 0 1 0 8M19.5 5.5a9.2 9.2 0 0 1 0 13"/></svg>
+            <svg class="sound-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9v6h4l5 4V5L9 9H5Z"/><path d="m17 9 4 4m0-4-4 4"/></svg>
+          </button>
+          <button class="icon-button" id="pause-button" type="button" aria-label="Pause game" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="title-screen panel" id="title-screen" aria-labelledby="game-title">
+          <p class="eyebrow"><span></span>Bioluminescent arcade</p>
+          <h1 id="game-title">Lumina<br /><em>Tide</em></h1>
+          <p class="lede">Carry the last living light through a beautiful, dangerous deep.</p>
+
+          <div class="rules">
+            <div><span class="rule-number">01</span><p>Gather drifting <strong>light motes</strong> to build your chain.</p></div>
+            <div><span class="rule-number">02</span><p>Avoid the slow-blooming <strong>ink</strong> in the current.</p></div>
+            <div><span class="rule-number">03</span><p>Release a charged <strong>pulse</strong> when the deep closes in.</p></div>
+          </div>
+
+          <button class="primary-button" id="start-button" type="button"><span>Begin the dive</span><span class="button-orb" aria-hidden="true">→</span></button>
+          <p class="microcopy">Move with pointer, touch, WASD, or arrow keys · Space releases pulse</p>
+        </section>
+
+        <section class="hud" id="hud" aria-label="Game status" hidden>
+          <div class="hud-left">
+            <div class="timer"><span>Oxygen</span><strong id="timer">60.0</strong></div>
+            <div class="energy" aria-label="Three energy points">
+              <span class="energy-pip active"></span><span class="energy-pip active"></span><span class="energy-pip active"></span>
+            </div>
+          </div>
+          <div class="combo" id="combo"><span>Chain</span><strong>×1</strong></div>
+          <div class="pulse-meter">
+            <div class="pulse-copy"><span>Pulse</span><strong id="pulse-percent">0%</strong></div>
+            <div class="meter-track"><span id="pulse-fill"></span></div>
+          </div>
+          <button class="pulse-button" id="pulse-button" type="button" disabled><span>Pulse</span><kbd>Space</kbd></button>
+        </section>
+
+        <section class="pause-screen overlay" id="pause-screen" aria-labelledby="pause-title" hidden>
+          <p class="eyebrow"><span></span>Current suspended</p>
+          <h2 id="pause-title">Take a breath.</h2>
+          <button class="primary-button compact" id="resume-button" type="button"><span>Return to the tide</span><span class="button-orb">→</span></button>
+        </section>
+
+        <section class="result-screen overlay" id="result-screen" aria-labelledby="result-title" hidden>
+          <p class="eyebrow"><span></span>Dive complete</p>
+          <h2 id="result-title">The deep remembers.</h2>
+          <div class="result-score">
+            <span>Final score</span><strong id="final-score">000000</strong>
+            <p id="result-message">A quiet current, beautifully crossed.</p>
+          </div>
+          <div class="result-stats">
+            <div><span>Light gathered</span><strong id="motes-collected">0</strong></div>
+            <div><span>Best chain</span><strong id="best-chain">×1</strong></div>
+            <div><span>Pulses</span><strong id="pulses-used">0</strong></div>
+          </div>
+          <button class="primary-button compact" id="replay-button" type="button"><span>Dive again</span><span class="button-orb">↻</span></button>
+        </section>
+
+        <p class="announcement" id="announcement" aria-live="assertive"></p>
+      </main>
+
+      <footer class="footer">
+        <div class="legend"><span><i class="mote-dot"></i>Collect light</span><span><i class="ink-dot"></i>Avoid ink</span></div>
+        <p>Flow beats force.</p>
+      </footer>
+    </div>
+
+    <script src="game.js"></script>
+  </body>
+</html>
