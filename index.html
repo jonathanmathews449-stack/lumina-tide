@@ -10,7 +10,7 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23030b18'/%3E%3Cpath d='M13 34c8-16 30-16 38 0-8 12-30 12-38 0Z' fill='%237cffe1'/%3E%3Ccircle cx='38' cy='31' r='3' fill='%23030b18'/%3E%3Cpath d='M15 34 7 25v18Z' fill='%23ffcf67'/%3E%3C/svg%3E" />
   </head>
   <body>
-    <canvas id="game-canvas" aria-label="Lumina Tide game field"></canvas>
+    <canvas id="game-canvas" tabindex="0" aria-label="Lumina Tide game field. Arrow keys or WASD to move, Space to release a pulse, Escape to pause."></canvas>
     <div class="water-light" aria-hidden="true"></div>
     <div class="grain" aria-hidden="true"></div>
 
@@ -22,7 +22,7 @@
           <span class="edition">Dive 01</span>
         </button>
 
-        <div class="scoreboard" aria-live="polite">
+        <div class="scoreboard">
           <div><span>Score</span><strong id="score">000000</strong></div>
           <div><span>Best</span><strong id="high-score">000000</strong></div>
         </div>
@@ -91,6 +91,7 @@
         </section>
 
         <p class="announcement" id="announcement" aria-live="assertive"></p>
+        <p class="sr-only" id="status" role="status"></p>
       </main>
 
       <footer class="footer">

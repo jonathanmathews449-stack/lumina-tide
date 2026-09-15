@@ -24,6 +24,7 @@ const bestChainDisplay = document.querySelector("#best-chain");
 const pulsesUsedDisplay = document.querySelector("#pulses-used");
 const resultMessage = document.querySelector("#result-message");
 const announcement = document.querySelector("#announcement");
+const statusRegion = document.querySelector("#status");
 
 const keys = new Set();
 const motes = [];
@@ -62,6 +63,7 @@ let lastTime = performance.now();
 let soundEnabled = false;
 let audioContext;
 let announcementTimer;
+let oxygenWarned = 0;
 
 function readHighScore() {
   try { return Number(localStorage.getItem("lumina-tide-best") || 0); }
@@ -154,6 +156,24 @@ function announce(text) {
   announcementTimer = window.setTimeout(() => announcement.classList.remove("show"), 900);
 }
 
+// Screen-reader status, kept apart from the on-screen flourish above: outcomes and
+// oxygen warnings are long sentences, and .announcement paints its text across the
+// middle of the screen.
+function setStatus(text) {
+  statusRegion.textContent = text;
+}
+
+// Every transition below hides or disables the control the player just used, and a
+// hidden element keeps focus in name only. The game field is the honest place to
+// put focus back — Space and the arrows belong to it, not to a button.
+function focusField() {
+  canvas.focus({ preventScroll: true });
+}
+
+function setText(node, value) {
+  if (node.textContent !== value) node.textContent = value;
+}
+
 function startGame() {
   gameState = "playing";
   score = 0;
@@ -186,8 +206,12 @@ function startGame() {
   hud.hidden = false;
   pauseButton.disabled = false;
   pauseButton.setAttribute("aria-label", "Pause game");
+  document.body.classList.add("is-playing");
+  oxygenWarned = 0;
   updateUI();
+  focusField();
   announce("Follow the light");
+  setStatus("Dive started. Sixty seconds of oxygen.");
   playTone(220, 0.6, 0.05);
 }
 
@@ -198,6 +222,10 @@ function returnHome() {
   pauseScreen.hidden = true;
   resultScreen.hidden = true;
   pauseButton.disabled = true;
+  document.body.classList.remove("is-playing");
+  keys.clear();
+  startButton.focus();
+  setStatus("Back at the title screen.");
   hazards.length = 0;
   motes.length = 0;
   particles.length = 0;
@@ -210,13 +238,27 @@ function togglePause(forcePause = false) {
     gameState = "paused";
     pauseScreen.hidden = false;
     pauseButton.setAttribute("aria-label", "Resume game");
+    document.body.classList.remove("is-playing");
+    keys.clear();
     resumeButton.focus();
+    announce("Paused");
   } else {
     gameState = "playing";
     pauseScreen.hidden = true;
     pauseButton.setAttribute("aria-label", "Pause game");
+    document.body.classList.add("is-playing");
     lastTime = performance.now();
+    focusField();
+    announce("Resumed");
   }
+}
+
+// Spoken, not painted. The result panel keeps its numbers in separate fields, and
+// focusing the replay button reads that button alone — the score never reaches a
+// screen reader unless something says it.
+function outcomeSummary(reason) {
+  const ending = reason === "energy" ? "Light extinguished." : "Oxygen gone.";
+  return `${ending} Final score ${score}, ${collected} light gathered, best chain ${bestChain}. ${resultMessage.textContent}`;
 }
 
 function endGame(reason) {
@@ -232,7 +274,10 @@ function endGame(reason) {
   bestChainDisplay.textContent = `×${bestChain}`;
   pulsesUsedDisplay.textContent = String(pulsesUsed);
   resultMessage.textContent = reason === "energy" ? "The ink found you—but the light still remembers." : score >= highScore && score > 0 ? "A new brightest path through the current." : "A quiet current, beautifully crossed.";
+  document.body.classList.remove("is-playing");
+  keys.clear();
   replayButton.focus();
+  setStatus(outcomeSummary(reason));
   playTone(reason === "energy" ? 140 : 440, 0.8, 0.06, "triangle");
 }
 
@@ -330,6 +375,8 @@ function updatePlayer(dt) {
 function updateGame(dt) {
   elapsed += dt;
   timeLeft = Math.max(0, timeLeft - dt);
+  if (timeLeft <= 10 && oxygenWarned < 2) { oxygenWarned = 2; setStatus("Ten seconds of oxygen left."); }
+  else if (timeLeft <= 30 && oxygenWarned < 1) { oxygenWarned = 1; setStatus("Thirty seconds of oxygen left."); }
   if (timeLeft <= 0) { endGame("time"); return; }
   updatePlayer(dt);
   streakTimer = Math.max(0, streakTimer - dt);
@@ -384,14 +431,20 @@ function removeDead(collection, predicate = (item) => item.dead) {
 }
 
 function updateUI() {
-  scoreDisplay.textContent = formatScore(score);
-  highScoreDisplay.textContent = formatScore(Math.max(highScore, score));
-  timerDisplay.textContent = timeLeft.toFixed(1);
-  comboDisplay.querySelector("strong").textContent = `×${chain}`;
+  // Written only on change. This runs every frame, and a screen reader treats a
+  // rewritten node as news even when the text is identical.
+  setText(scoreDisplay, formatScore(score));
+  setText(highScoreDisplay, formatScore(Math.max(highScore, score)));
+  setText(timerDisplay, timeLeft.toFixed(1));
+  setText(comboDisplay.querySelector("strong"), `×${chain}`);
   comboDisplay.classList.toggle("hot", chain > 1);
   pulseFill.style.width = `${pulseCharge}%`;
-  pulsePercent.textContent = `${Math.floor(pulseCharge)}%`;
-  pulseButton.disabled = pulseCharge < 100 || gameState !== "playing";
+  setText(pulsePercent, `${Math.floor(pulseCharge)}%`);
+  const pulseDisabled = pulseCharge < 100 || gameState !== "playing";
+  // Spending the pulse disables the button the player is standing on. Leave first.
+  if (pulseDisabled && !pulseButton.disabled && gameState === "playing"
+    && document.activeElement === pulseButton) focusField();
+  pulseButton.disabled = pulseDisabled;
   pulseButton.classList.toggle("ready", pulseCharge >= 100 && gameState === "playing");
   energyPips.forEach((pip, index) => pip.classList.toggle("active", index < energy));
 }
@@ -548,12 +601,27 @@ soundButton.addEventListener("click", () => {
 
 window.addEventListener("keydown", (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(event.key)) event.preventDefault();
-  if (event.key === " " && !event.repeat) releasePulse();
-  else if (event.key === "Escape" && !event.repeat) togglePause();
-  else keys.add(key);
+  // Space activates a focused button. Claiming it unconditionally left every
+  // button on this page — start, replay, resume, sound, pause — dead to the
+  // keyboard; claiming the arrows stopped the panels scrolling on a short screen.
+  const onControl = event.target !== canvas && event.target instanceof Element
+    && event.target.closest("button, a, input, select, textarea") !== null;
+  const gameKey = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(event.key);
+  if (gameKey && gameState === "playing" && !onControl) event.preventDefault();
+  if (event.key === " ") {
+    if (!onControl && !event.repeat) releasePulse();
+    return;
+  }
+  if (event.key === "Escape") {
+    if (!event.repeat) togglePause();
+    return;
+  }
+  keys.add(key);
 });
 window.addEventListener("keyup", (event) => keys.delete(event.key.length === 1 ? event.key.toLowerCase() : event.key));
+// Same reason as visibilitychange: a key held while the window loses focus never
+// delivers its keyup.
+window.addEventListener("blur", () => keys.clear());
 canvas.addEventListener("pointermove", (event) => {
   if (gameState !== "playing") return;
   pointer.x = event.clientX;
@@ -570,6 +638,9 @@ canvas.addEventListener("pointerdown", (event) => {
 canvas.addEventListener("touchmove", (event) => event.preventDefault(), { passive: false });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden && gameState === "playing") togglePause(true);
+  // A key held when the tab went away never fires its keyup, and the light would
+  // keep drifting on its own for the rest of the dive.
+  keys.clear();
   lastTime = performance.now();
 });
 window.addEventListener("resize", resize);
