@@ -33,12 +33,16 @@ const depthDisplay = document.querySelector("#depth");
 const depthBox = document.querySelector(".depth");
 const grazesDisplay = document.querySelector("#grazes");
 const depthReachedDisplay = document.querySelector("#depth-reached");
+const riftsCrossedDisplay = document.querySelector("#rifts-crossed");
+const seekersOutrunDisplay = document.querySelector("#seekers-outrun");
 
 const keys = new Set();
 const motes = [];
 const hazards = [];
 const particles = [];
 const ripples = [];
+const rifts = [];
+const seekers = [];
 const ambientSeeds = Array.from({ length: 7 }, (_, index) => ({
   offset: Math.random() * Math.PI * 2,
   speed: 0.08 + Math.random() * 0.08,
@@ -79,6 +83,10 @@ let boostHeld = false;
 let boostLatched = false;
 let grazes = 0;
 let depth = 1;
+let riftTimer = 0;
+let seekerTimer = 0;
+let riftsCrossed = 0;
+let seekersOutrun = 0;
 
 // Boost economy. Drain outpaces regen roughly 3:1, so a full bar is about two
 // seconds of held boost and eight of waiting — grazing is the fast way back.
@@ -87,12 +95,18 @@ const BOOST_REGEN = 16;
 const GRAZE_RANGE = 34;
 
 function readHighScore() {
-  try { return Number(localStorage.getItem("lumina-tide-best") || 0); }
+  try {
+    const current = Number(localStorage.getItem("lumina-best") || 0);
+    const legacy = Number(localStorage.getItem("lumina-tide-best") || 0);
+    const best = Math.max(Number.isFinite(current) ? current : 0, Number.isFinite(legacy) ? legacy : 0);
+    if (!Number.isFinite(current) || best > current) localStorage.setItem("lumina-best", String(best));
+    return best;
+  }
   catch { return 0; }
 }
 
 function saveHighScore() {
-  try { localStorage.setItem("lumina-tide-best", String(highScore)); }
+  try { localStorage.setItem("lumina-best", String(highScore)); }
   catch { /* High score persistence is optional. */ }
 }
 
@@ -154,6 +168,33 @@ function spawnHazard() {
   });
 }
 
+function spawnRift() {
+  const gapRadius = Math.max(62, Math.min(88, height * 0.105));
+  rifts.push({
+    x: width + 26,
+    gapY: random(Math.max(145, height * 0.22), height - 120),
+    gapRadius,
+    speed: 50 + depth * 8,
+    resolved: false,
+    dead: false
+  });
+}
+
+function spawnSeeker() {
+  seekers.push({
+    x: width + 28,
+    y: random(Math.max(130, height * 0.16), height - 82),
+    vx: -88,
+    vy: 0,
+    radius: 11,
+    life: 7.5,
+    phase: random(0, Math.PI * 2),
+    dead: false
+  });
+  announce("A seeker has your light");
+  setStatus("A seeker has entered the current. Boost to weaken its lock, or clear it with a pulse.");
+}
+
 function playTone(frequency, duration = 0.22, volume = 0.06, type = "sine") {
   if (!soundEnabled) return;
   audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
@@ -209,6 +250,8 @@ function startGame() {
   pulsesUsed = 0;
   grazes = 0;
   depth = 1;
+  riftsCrossed = 0;
+  seekersOutrun = 0;
   boostEnergy = 100;
   boostIdle = 0;
   boosting = false;
@@ -217,8 +260,12 @@ function startGame() {
   elapsed = 0;
   moteTimer = 0;
   hazardTimer = 1.2;
+  riftTimer = 6;
+  seekerTimer = 7;
   motes.length = 0;
   hazards.length = 0;
+  rifts.length = 0;
+  seekers.length = 0;
   particles.length = 0;
   ripples.length = 0;
   player.x = width * 0.3;
@@ -264,6 +311,8 @@ function returnHome() {
   setStatus("Back at the title screen.");
   hazards.length = 0;
   motes.length = 0;
+  rifts.length = 0;
+  seekers.length = 0;
   particles.length = 0;
   ripples.length = 0;
 }
@@ -297,7 +346,16 @@ function togglePause(forcePause = false) {
 // screen reader unless something says it.
 function outcomeSummary(reason) {
   const ending = reason === "energy" ? "Light extinguished." : "Oxygen gone.";
-  return `${ending} Final score ${score}, ${collected} light gathered, ${grazes} grazes, best chain ${bestChain}, depth ${depth}. ${resultMessage.textContent}`;
+  return `${ending} Final score ${score}, ${collected} light gathered, ${grazes} grazes, ${riftsCrossed} rifts crossed, ${seekersOutrun} seekers outrun, best chain ${bestChain}, depth ${depth}. ${resultMessage.textContent}`;
+}
+
+function runAccolade(reason, isNewHigh) {
+  if (riftsCrossed >= 3) return "You threaded the deep like a needle through silk.";
+  if (seekersOutrun >= 2) return "Nothing in the deep could hold your trail.";
+  if (bestChain >= 7) return "A near-unbroken constellation followed you home.";
+  if (grazes >= 4) return "You found light at the very edge of the ink.";
+  if (isNewHigh) return "A new brightest path through the current.";
+  return reason === "energy" ? "The ink found you—but the light still remembers." : "A quiet current, beautifully crossed.";
 }
 
 function endGame(reason) {
@@ -305,6 +363,7 @@ function endGame(reason) {
   hud.hidden = true;
   pauseButton.disabled = true;
   resultScreen.hidden = false;
+  const isNewHigh = score > highScore;
   highScore = Math.max(highScore, score);
   saveHighScore();
   highScoreDisplay.textContent = formatScore(highScore);
@@ -314,10 +373,12 @@ function endGame(reason) {
   pulsesUsedDisplay.textContent = String(pulsesUsed);
   grazesDisplay.textContent = String(grazes);
   depthReachedDisplay.textContent = String(depth);
+  riftsCrossedDisplay.textContent = String(riftsCrossed);
+  seekersOutrunDisplay.textContent = String(seekersOutrun);
   boostHeld = false;
   boostLatched = false;
   boosting = false;
-  resultMessage.textContent = reason === "energy" ? "The ink found you—but the light still remembers." : score >= highScore && score > 0 ? "A new brightest path through the current." : "A quiet current, beautifully crossed.";
+  resultMessage.textContent = runAccolade(reason, isNewHigh);
   document.body.classList.remove("is-playing");
   keys.clear();
   replayButton.focus();
@@ -360,16 +421,16 @@ function releasePulse() {
   pulseCharge = 0;
   pulsesUsed += 1;
   let cleared = 0;
-  for (const hazard of hazards) {
-    if (!hazard.dead && distance(player, hazard) < 330) {
-      hazard.dead = true;
+  for (const threat of [...hazards, ...seekers]) {
+    if (!threat.dead && distance(player, threat) < 330) {
+      threat.dead = true;
       cleared += 1;
       score += 150;
-      addParticles(hazard.x, hazard.y, "255,207,103", 20, 1.1);
+      addParticles(threat.x, threat.y, "255,207,103", 20, 1.1);
     }
   }
   ripples.push({ x: player.x, y: player.y, radius: 12, life: 1, color: "124,255,225", pulse: true });
-  announce(cleared ? `Pulse cleared ${cleared}` : "Pulse released");
+  announce(cleared ? `Pulse cleared ${cleared} ${cleared === 1 ? "threat" : "threats"}` : "Pulse released");
   playTone(180, 0.75, 0.1, "sine");
   window.setTimeout(() => playTone(360, 0.6, 0.05, "sine"), 80);
 }
@@ -446,6 +507,63 @@ function updatePlayer(dt) {
   player.trail.forEach((point) => (point.life *= boosting ? 0.92 : 0.88));
 }
 
+function updateRifts(dt) {
+  for (const rift of rifts) {
+    rift.x -= rift.speed * dt;
+    if (!rift.resolved && rift.x <= player.x) {
+      rift.resolved = true;
+      const threaded = Math.abs(player.y - rift.gapY) <= rift.gapRadius - player.radius;
+      if (threaded) {
+        riftsCrossed += 1;
+        chain = Math.min(8, chain + 1);
+        bestChain = Math.max(bestChain, chain);
+        streakTimer = Math.max(streakTimer, 3.4);
+        boostEnergy = Math.min(100, boostEnergy + 24);
+        score += 180 * depth;
+        announce("Rift threaded · boost restored");
+        setStatus(`Rift threaded. Chain ${chain}. Boost restored.`);
+      }
+    }
+    if (rift.x < -30) rift.dead = true;
+  }
+}
+
+function updateSeekers(dt) {
+  for (const seeker of seekers) {
+    if (seeker.dead) continue;
+    seeker.life -= dt;
+    seeker.phase += dt * 4;
+    const dx = player.x - seeker.x;
+    const dy = player.y - seeker.y;
+    const length = Math.hypot(dx, dy) || 1;
+    // Boost is not just extra speed here: its wake disrupts the seeker's turn.
+    const tracking = boosting ? 28 : 76;
+    seeker.vx += (dx / length) * tracking * dt;
+    seeker.vy += (dy / length) * tracking * dt;
+    const maxSpeed = boosting ? 116 : 148;
+    const speed = Math.hypot(seeker.vx, seeker.vy);
+    if (speed > maxSpeed) {
+      seeker.vx = (seeker.vx / speed) * maxSpeed;
+      seeker.vy = (seeker.vy / speed) * maxSpeed;
+    }
+    seeker.x += seeker.vx * dt;
+    seeker.y += seeker.vy * dt;
+
+    if (distance(player, seeker) < player.radius + seeker.radius) {
+      hitHazard(seeker);
+      continue;
+    }
+    if (seeker.life <= 0 || seeker.x < -50) {
+      seeker.dead = true;
+      seekersOutrun += 1;
+      boostEnergy = Math.min(100, boostEnergy + 12);
+      score += 120 * depth;
+      announce("Seeker lost · boost restored");
+      setStatus("Seeker outrun. Its fading wake restored boost.");
+    }
+  }
+}
+
 function updateGame(dt) {
   elapsed += dt;
   timeLeft = Math.max(0, timeLeft - dt);
@@ -458,8 +576,13 @@ function updateGame(dt) {
     depthBox.classList.remove("rising");
     void depthBox.offsetWidth;
     depthBox.classList.add("rising");
+    const depthStatus = depth === 2
+      ? "Depth 2. Rift gates are opening."
+      : depth === 3
+        ? "Depth 3. Seekers have found your light."
+        : `Depth ${depth}. The ink comes faster.`;
     announce(`Depth ${depth}`);
-    setStatus(`Depth ${depth}. The ink comes faster.`);
+    setStatus(depthStatus);
   }
   if (timeLeft <= 0) { endGame("time"); return; }
   updatePlayer(dt);
@@ -475,6 +598,20 @@ function updateGame(dt) {
     spawnHazard();
     const difficulty = Math.min(0.75, elapsed / 85);
     hazardTimer = random(1.6, 2.5) * (1 - difficulty) * (1 - (depth - 1) * 0.07);
+  }
+  if (depth >= 2) {
+    riftTimer -= dt;
+    if (riftTimer <= 0) {
+      spawnRift();
+      riftTimer = random(7.2, 9.5) - (depth - 2) * 0.45;
+    }
+  }
+  if (depth >= 3) {
+    seekerTimer -= dt;
+    if (seekerTimer <= 0) {
+      spawnSeeker();
+      seekerTimer = random(8.5, 11) - (depth - 3) * 0.5;
+    }
   }
   for (const mote of motes) {
     mote.phase += dt * 1.7;
@@ -503,6 +640,8 @@ function updateGame(dt) {
       if (grazes % 5 === 0) announce(`${grazes} grazes`);
     }
   }
+  updateRifts(dt);
+  updateSeekers(dt);
   for (const particle of particles) {
     particle.x += particle.vx * dt;
     particle.y += particle.vy * dt;
@@ -518,6 +657,8 @@ function updateGame(dt) {
   removeDead(hazards);
   removeDead(particles, (item) => item.life <= 0);
   removeDead(ripples, (item) => item.life <= 0);
+  removeDead(rifts);
+  removeDead(seekers);
   updateUI();
 }
 
@@ -621,6 +762,55 @@ function drawHazard(hazard, time) {
   ctx.stroke();
 }
 
+function drawRift(rift, time) {
+  const shimmer = reducedMotion ? 0.58 : 0.58 + Math.sin(time * 0.004 + rift.gapY) * 0.16;
+  const top = Math.max(0, rift.gapY - rift.gapRadius);
+  const bottom = Math.min(height, rift.gapY + rift.gapRadius);
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.strokeStyle = `rgba(124,255,225,${rift.resolved ? 0.16 : shimmer})`;
+  ctx.lineWidth = rift.resolved ? 1 : 2;
+  ctx.shadowColor = "rgba(124,255,225,.8)";
+  ctx.shadowBlur = rift.resolved ? 4 : 14;
+  ctx.beginPath();
+  ctx.moveTo(rift.x, 0);
+  ctx.lineTo(rift.x, top);
+  ctx.moveTo(rift.x, bottom);
+  ctx.lineTo(rift.x, height);
+  ctx.stroke();
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(rift.x, top, 8, Math.PI, 0);
+  ctx.arc(rift.x, bottom, 8, 0, Math.PI);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawSeeker(seeker, time) {
+  const angle = Math.atan2(seeker.vy, seeker.vx);
+  const flicker = reducedMotion ? 1 : 1 + Math.sin(time * 0.009 + seeker.phase) * 0.12;
+  ctx.save();
+  ctx.translate(seeker.x, seeker.y);
+  ctx.rotate(angle + Math.PI / 4);
+  ctx.shadowColor = "rgba(195,112,255,.9)";
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = "rgba(195,112,255,.82)";
+  ctx.fillRect(-seeker.radius * 0.65, -seeker.radius * 0.65, seeker.radius * 1.3 * flicker, seeker.radius * 1.3 * flicker);
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = "rgba(255,207,103,.95)";
+  ctx.fillRect(-2.5, -2.5, 5, 5);
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = `rgba(195,112,255,${boosting ? 0.1 : 0.26})`;
+  ctx.setLineDash([3, 8]);
+  ctx.beginPath();
+  ctx.moveTo(seeker.x, seeker.y);
+  ctx.lineTo(player.x, player.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawPlayer(time) {
   for (let index = player.trail.length - 1; index >= 0; index -= 1) {
     const point = player.trail[index];
@@ -666,8 +856,10 @@ function drawEffects() {
 function draw(time) {
   drawBackground(time);
   if (gameState !== "title") {
+    rifts.forEach((rift) => drawRift(rift, time));
     motes.forEach((mote) => drawMote(mote, time));
     hazards.forEach((hazard) => drawHazard(hazard, time));
+    seekers.forEach((seeker) => drawSeeker(seeker, time));
     drawEffects();
     drawPlayer(time);
   } else {

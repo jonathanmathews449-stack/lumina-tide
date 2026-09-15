@@ -1,0 +1,9 @@
+{
+  "name": "Lumina",
+  "short_name": "Lumina",
+  "description": "A one-minute bioluminescent arcade dive through motes, rifts, ink, and seekers.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#020712",
+  "theme_color": "#030b18"
+}

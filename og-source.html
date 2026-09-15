@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>Lumina — og:image source</title>
+<!--
+  Source for og.png. Render at 1200×630 with the shared workspace helper:
+
+    bash scripts/og-image.sh "/c/Users/AI DEV/Documents/lumina-tide"
+
+  The card is deliberately network-free and uses only system fonts and CSS.
+-->
+<style>
+  :root { --bg:#020712; --deep:#061927; --ink:#edfdfb; --muted:#91adb4; --aqua:#7cffe1; --gold:#ffcf67; --violet:#c370ff; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; width:1200px; height:630px; overflow:hidden; }
+  body { position:relative; background:radial-gradient(circle at 68% 48%,#0b3340 0,var(--deep) 38%,var(--bg) 76%); color:var(--ink); font-family:"Segoe UI",Arial,sans-serif; }
+  body::after { content:""; position:absolute; inset:0; background:radial-gradient(circle at 78% 52%,transparent 0,rgba(2,7,18,.18) 40%,rgba(2,7,18,.72) 100%); }
+  .plate { position:absolute; z-index:2; inset:0; display:flex; flex-direction:column; justify-content:center; padding:0 78px; }
+  .kicker { display:flex; align-items:center; gap:18px; margin:0 0 26px; color:var(--aqua); font-size:28px; font-weight:650; letter-spacing:.2em; text-transform:uppercase; }
+  .kicker i { width:58px; height:2px; background:currentColor; }
+  h1 { margin:0; font-family:Didot,"Bodoni MT",Georgia,serif; font-size:154px; font-weight:400; letter-spacing:-.055em; line-height:.84; text-transform:uppercase; }
+  .tagline { width:650px; margin:38px 0 0; color:var(--muted); font-family:Didot,"Bodoni MT",Georgia,serif; font-size:34px; line-height:1.35; }
+  .mark { position:absolute; z-index:2; right:72px; bottom:48px; color:var(--muted); font-size:24px; letter-spacing:.16em; text-transform:uppercase; }
+  svg { position:absolute; z-index:1; inset:0; width:1200px; height:630px; }
+</style>
+</head>
+<body>
+  <svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <filter id="glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="12" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      <radialGradient id="mote"><stop offset="0" stop-color="#fff"/><stop offset=".18" stop-color="#7cffe1"/><stop offset="1" stop-color="#7cffe1" stop-opacity="0"/></radialGradient>
+    </defs>
+    <g opacity=".42" stroke="#7cffe1" fill="none" filter="url(#glow)">
+      <path d="M876 0V190M876 410V630" stroke-width="4"/>
+      <path d="M876 190a18 18 0 0 1 18 18M876 410a18 18 0 0 0 18-18" stroke-width="4"/>
+    </g>
+    <g>
+      <circle cx="980" cy="214" r="68" fill="url(#mote)"/><circle cx="980" cy="214" r="6" fill="#fff"/>
+      <circle cx="1062" cy="442" r="52" fill="url(#mote)"/><circle cx="1062" cy="442" r="5" fill="#fff"/>
+      <circle cx="786" cy="500" r="42" fill="url(#mote)"/><circle cx="786" cy="500" r="4" fill="#fff"/>
+    </g>
+    <g transform="translate(1008 326) rotate(45)" filter="url(#glow)">
+      <rect x="-18" y="-18" width="36" height="36" rx="4" fill="#c370ff" fill-opacity=".86"/>
+      <rect x="-4" y="-4" width="8" height="8" fill="#ffcf67"/>
+    </g>
+    <path d="M1008 326Q940 334 900 360" stroke="#c370ff" stroke-opacity=".24" stroke-width="2" stroke-dasharray="5 12" fill="none"/>
+    <ellipse cx="822" cy="300" rx="29" ry="18" fill="#edfdfb" filter="url(#glow)"/>
+    <path d="M820 300Q760 292 712 314" stroke="#7cffe1" stroke-opacity=".22" stroke-width="18" stroke-linecap="round" fill="none"/>
+  </svg>
+  <div class="plate">
+    <p class="kicker"><i></i>Bioluminescent arcade</p>
+    <h1>Lumina</h1>
+    <p class="tagline">Carry the last living light through a beautiful, dangerous deep.</p>
+  </div>
+  <div class="mark">One minute · one light</div>
+</body>
+</html>

@@ -4,13 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#030b18" />
-    <meta name="description" content="Lumina Tide — a bioluminescent arcade game about flow, focus, and light." />
-    <title>Lumina Tide — Arcade in the Deep</title>
+    <meta name="description" content="Lumina — a one-minute bioluminescent arcade dive through motes, rifts, ink, and seekers." />
+    <meta property="og:title" content="Lumina — Arcade in the Deep" />
+    <meta property="og:description" content="Carry the last living light through a one-minute current of motes, rifts, ink, and seekers." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Lumina" />
+    <meta property="og:url" content="https://jonathanmathews449-stack.github.io/lumina-tide/" />
+    <meta property="og:image" content="https://jonathanmathews449-stack.github.io/lumina-tide/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Lumina — a living light threading a glowing rift while violet seekers cross the deep." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <title>Lumina — Arcade in the Deep</title>
     <link rel="stylesheet" href="styles.css" />
+    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23030b18'/%3E%3Cpath d='M13 34c8-16 30-16 38 0-8 12-30 12-38 0Z' fill='%237cffe1'/%3E%3Ccircle cx='38' cy='31' r='3' fill='%23030b18'/%3E%3Cpath d='M15 34 7 25v18Z' fill='%23ffcf67'/%3E%3C/svg%3E" />
   </head>
   <body>
-    <canvas id="game-canvas" tabindex="0" aria-label="Lumina Tide game field. Arrow keys or WASD to move, Space to release a pulse, Escape to pause."></canvas>
+    <canvas id="game-canvas" tabindex="0" aria-label="Lumina game field. Arrow keys or WASD to move, Space to release a pulse, Escape to pause."></canvas>
     <div class="water-light" aria-hidden="true"></div>
     <div class="grain" aria-hidden="true"></div>
 
@@ -18,7 +29,7 @@
       <header class="topbar">
         <button class="brand" id="home-button" type="button" aria-label="Return to title">
           <span class="brand-glyph" aria-hidden="true"><i></i></span>
-          <span>Lumina Tide</span>
+          <span>Lumina</span>
           <span class="edition">Dive 01</span>
         </button>
 
@@ -41,14 +52,14 @@
       <main>
         <section class="title-screen panel" id="title-screen" aria-labelledby="game-title">
           <p class="eyebrow"><span></span>Bioluminescent arcade</p>
-          <h1 id="game-title">Lumina<br /><em>Tide</em></h1>
+          <h1 id="game-title">Lumina</h1>
           <p class="lede">Carry the last living light through a beautiful, dangerous deep.</p>
 
           <div class="rules">
             <div><span class="rule-number">01</span><p>Gather drifting <strong>light motes</strong> to build your chain.</p></div>
-            <div><span class="rule-number">02</span><p>Avoid the slow-blooming <strong>ink</strong> in the current.</p></div>
-            <div><span class="rule-number">03</span><p>Release a charged <strong>pulse</strong> when the deep closes in.</p></div>
-            <div><span class="rule-number">04</span><p>Hold <strong>Shift</strong> to boost, and graze the ink to earn it back.</p></div>
+            <div><span class="rule-number">02</span><p>Thread glowing <strong>rifts</strong> to extend your chain and restore boost.</p></div>
+            <div><span class="rule-number">03</span><p>Evade the ink and boost to break a <strong>seeker</strong>'s lock.</p></div>
+            <div><span class="rule-number">04</span><p>Release a charged <strong>pulse</strong> when the deep closes in.</p></div>
           </div>
 
           <button class="primary-button" id="start-button" type="button"><span>Begin the dive</span><span class="button-orb" aria-hidden="true">→</span></button>
@@ -98,6 +109,8 @@
             <div><span>Best chain</span><strong id="best-chain">×1</strong></div>
             <div><span>Pulses</span><strong id="pulses-used">0</strong></div>
             <div><span>Grazes</span><strong id="grazes">0</strong></div>
+            <div><span>Rifts crossed</span><strong id="rifts-crossed">0</strong></div>
+            <div><span>Seekers outrun</span><strong id="seekers-outrun">0</strong></div>
             <div><span>Depth reached</span><strong id="depth-reached">1</strong></div>
           </div>
           <button class="primary-button compact" id="replay-button" type="button"><span>Dive again</span><span class="button-orb">↻</span></button>
