@@ -246,11 +246,15 @@ function startGame() {
 
 function returnHome() {
   gameState = "title";
+  window.clearTimeout(announcementTimer);
+  announcement.classList.remove("show");
+  announcement.textContent = "";
   titleScreen.hidden = false;
   hud.hidden = true;
   pauseScreen.hidden = true;
   resultScreen.hidden = true;
   pauseButton.disabled = true;
+  pauseButton.setAttribute("aria-label", "Pause game");
   document.body.classList.remove("is-playing");
   keys.clear();
   boostHeld = false;
