@@ -25,6 +25,14 @@ const pulsesUsedDisplay = document.querySelector("#pulses-used");
 const resultMessage = document.querySelector("#result-message");
 const announcement = document.querySelector("#announcement");
 const statusRegion = document.querySelector("#status");
+const boostButton = document.querySelector("#boost-button");
+const boostFill = document.querySelector("#boost-fill");
+const boostPercent = document.querySelector("#boost-percent");
+const boostMeter = document.querySelector(".meter-boost");
+const depthDisplay = document.querySelector("#depth");
+const depthBox = document.querySelector(".depth");
+const grazesDisplay = document.querySelector("#grazes");
+const depthReachedDisplay = document.querySelector("#depth-reached");
 
 const keys = new Set();
 const motes = [];
@@ -64,6 +72,19 @@ let soundEnabled = false;
 let audioContext;
 let announcementTimer;
 let oxygenWarned = 0;
+let boostEnergy = 100;
+let boostIdle = 0;
+let boosting = false;
+let boostHeld = false;
+let boostLatched = false;
+let grazes = 0;
+let depth = 1;
+
+// Boost economy. Drain outpaces regen roughly 3:1, so a full bar is about two
+// seconds of held boost and eight of waiting — grazing is the fast way back.
+const BOOST_DRAIN = 46;
+const BOOST_REGEN = 16;
+const GRAZE_RANGE = 34;
 
 function readHighScore() {
   try { return Number(localStorage.getItem("lumina-tide-best") || 0); }
@@ -128,6 +149,7 @@ function spawnHazard() {
     phase: random(0, Math.PI * 2),
     rotation: random(0, Math.PI * 2),
     spin: random(-0.35, 0.35),
+    grazed: false,
     dead: false
   });
 }
@@ -185,6 +207,13 @@ function startGame() {
   pulseCharge = 0;
   collected = 0;
   pulsesUsed = 0;
+  grazes = 0;
+  depth = 1;
+  boostEnergy = 100;
+  boostIdle = 0;
+  boosting = false;
+  boostHeld = false;
+  boostLatched = false;
   elapsed = 0;
   moteTimer = 0;
   hazardTimer = 1.2;
@@ -224,6 +253,9 @@ function returnHome() {
   pauseButton.disabled = true;
   document.body.classList.remove("is-playing");
   keys.clear();
+  boostHeld = false;
+  boostLatched = false;
+  boosting = false;
   startButton.focus();
   setStatus("Back at the title screen.");
   hazards.length = 0;
@@ -240,6 +272,9 @@ function togglePause(forcePause = false) {
     pauseButton.setAttribute("aria-label", "Resume game");
     document.body.classList.remove("is-playing");
     keys.clear();
+    boostHeld = false;
+    boostLatched = false;
+    boosting = false;
     resumeButton.focus();
     announce("Paused");
   } else {
@@ -258,7 +293,7 @@ function togglePause(forcePause = false) {
 // screen reader unless something says it.
 function outcomeSummary(reason) {
   const ending = reason === "energy" ? "Light extinguished." : "Oxygen gone.";
-  return `${ending} Final score ${score}, ${collected} light gathered, best chain ${bestChain}. ${resultMessage.textContent}`;
+  return `${ending} Final score ${score}, ${collected} light gathered, ${grazes} grazes, best chain ${bestChain}, depth ${depth}. ${resultMessage.textContent}`;
 }
 
 function endGame(reason) {
@@ -273,6 +308,11 @@ function endGame(reason) {
   motesCollectedDisplay.textContent = String(collected);
   bestChainDisplay.textContent = `×${bestChain}`;
   pulsesUsedDisplay.textContent = String(pulsesUsed);
+  grazesDisplay.textContent = String(grazes);
+  depthReachedDisplay.textContent = String(depth);
+  boostHeld = false;
+  boostLatched = false;
+  boosting = false;
   resultMessage.textContent = reason === "energy" ? "The ink found you—but the light still remembers." : score >= highScore && score > 0 ? "A new brightest path through the current." : "A quiet current, beautifully crossed.";
   document.body.classList.remove("is-playing");
   keys.clear();
@@ -337,25 +377,54 @@ function updatePlayer(dt) {
   if (keys.has("ArrowRight") || keys.has("d")) ax += 1;
   if (keys.has("ArrowUp") || keys.has("w")) ay -= 1;
   if (keys.has("ArrowDown") || keys.has("s")) ay += 1;
+
+  // One boost state, whatever asked for it: Shift, a held pointer on the button,
+  // or the keyboard latch.
+  const wantsBoost = keys.has("Shift") || boostHeld || boostLatched;
+  if (wantsBoost && boostEnergy > 0) {
+    boosting = true;
+    boostIdle = 0;
+    boostEnergy = Math.max(0, boostEnergy - BOOST_DRAIN * dt);
+    if (boostEnergy === 0) {
+      boostLatched = false;
+      setStatus("Boost spent. Graze the ink to earn it back.");
+    }
+  } else {
+    boosting = false;
+    boostIdle += dt;
+    // A beat before recovery starts, so tapping boost forever is not free.
+    if (boostIdle > 0.45) boostEnergy = Math.min(100, boostEnergy + BOOST_REGEN * dt);
+  }
+
+  // Tuned against the drag, not in isolation. With v -= drag each frame the top
+  // speed is accel*dt/(1-drag^dt), so the OLD 720 accel topped out near 115 px/s
+  // from the keyboard and never came close to its own 285 cap — that ceiling was
+  // dead code, and it is most of why this felt like steering a barge. These
+  // numbers put terminal velocity just above the cap, so the cap is what limits.
+  const accel = boosting ? 3400 : 2000;
+  const maxSpeed = boosting ? 560 : 340;
+
   if (ax || ay) {
     pointer.active = false;
     const length = Math.hypot(ax, ay) || 1;
-    player.vx += (ax / length) * 720 * dt;
-    player.vy += (ay / length) * 720 * dt;
+    player.vx += (ax / length) * accel * dt;
+    player.vy += (ay / length) * accel * dt;
   } else if (pointer.active) {
     const dx = pointer.x - player.x;
     const dy = pointer.y - player.y;
     const length = Math.hypot(dx, dy);
-    if (length > 4) {
-      const strength = Math.min(1, length / 130);
-      player.vx += (dx / length) * 620 * strength * dt;
-      player.vy += (dy / length) * 620 * strength * dt;
+    if (length > 2) {
+      // Commits to the pointer over a much shorter distance than it used to: the
+      // old 130px ramp meant small corrections barely accelerated at all, which
+      // is most of why this felt like steering a barge.
+      const strength = Math.min(1, length / 70);
+      player.vx += (dx / length) * accel * 0.86 * strength * dt;
+      player.vy += (dy / length) * accel * 0.86 * strength * dt;
     }
   }
-  const drag = Math.pow(0.0009, dt);
+  const drag = Math.pow(0.0025, dt);
   player.vx *= drag;
   player.vy *= drag;
-  const maxSpeed = 285;
   const speed = Math.hypot(player.vx, player.vy);
   if (speed > maxSpeed) {
     player.vx = (player.vx / speed) * maxSpeed;
@@ -368,8 +437,9 @@ function updatePlayer(dt) {
   player.y = Math.max(topLimit, Math.min(height - 56, player.y));
   player.invulnerable = Math.max(0, player.invulnerable - dt);
   player.trail.unshift({ x: player.x, y: player.y, life: 1 });
-  if (player.trail.length > (reducedMotion ? 8 : 22)) player.trail.pop();
-  player.trail.forEach((point) => (point.life *= 0.88));
+  const trailLength = reducedMotion ? 8 : boosting ? 34 : 22;
+  if (player.trail.length > trailLength) player.trail.pop();
+  player.trail.forEach((point) => (point.life *= boosting ? 0.92 : 0.88));
 }
 
 function updateGame(dt) {
@@ -377,6 +447,16 @@ function updateGame(dt) {
   timeLeft = Math.max(0, timeLeft - dt);
   if (timeLeft <= 10 && oxygenWarned < 2) { oxygenWarned = 2; setStatus("Ten seconds of oxygen left."); }
   else if (timeLeft <= 30 && oxygenWarned < 1) { oxygenWarned = 1; setStatus("Thirty seconds of oxygen left."); }
+  const nextDepth = Math.min(5, 1 + Math.floor(elapsed / 14));
+  if (nextDepth !== depth) {
+    depth = nextDepth;
+    // Restart the animation rather than let a second rise be swallowed.
+    depthBox.classList.remove("rising");
+    void depthBox.offsetWidth;
+    depthBox.classList.add("rising");
+    announce(`Depth ${depth}`);
+    setStatus(`Depth ${depth}. The ink comes faster.`);
+  }
   if (timeLeft <= 0) { endGame("time"); return; }
   updatePlayer(dt);
   streakTimer = Math.max(0, streakTimer - dt);
@@ -390,7 +470,7 @@ function updateGame(dt) {
   if (hazardTimer <= 0) {
     spawnHazard();
     const difficulty = Math.min(0.75, elapsed / 85);
-    hazardTimer = random(1.6, 2.5) * (1 - difficulty);
+    hazardTimer = random(1.6, 2.5) * (1 - difficulty) * (1 - (depth - 1) * 0.07);
   }
   for (const mote of motes) {
     mote.phase += dt * 1.7;
@@ -404,7 +484,20 @@ function updateGame(dt) {
     hazard.rotation += hazard.spin * dt;
     hazard.phase += dt;
     if (hazard.x < -hazard.radius - 30) hazard.dead = true;
-    if (!hazard.dead && distance(player, hazard) < player.radius + hazard.radius * 0.68) hitHazard(hazard);
+    if (hazard.dead) continue;
+    const gap = distance(player, hazard) - (player.radius + hazard.radius * 0.68);
+    if (gap < 0) { hitHazard(hazard); continue; }
+    // Grazing. Steering close rather than wide pays the boost back, which is what
+    // keeps boost from being a bar you simply run down once and then live without.
+    if (gap < GRAZE_RANGE && !hazard.grazed && player.invulnerable <= 0) {
+      hazard.grazed = true;
+      grazes += 1;
+      score += 40 * chain;
+      boostEnergy = Math.min(100, boostEnergy + 14);
+      addParticles(hazard.x, hazard.y, "255,207,103", 8, 0.55);
+      playTone(520 + Math.min(6, grazes) * 18, 0.1, 0.03, "triangle");
+      if (grazes % 5 === 0) announce(`${grazes} grazes`);
+    }
   }
   for (const particle of particles) {
     particle.x += particle.vx * dt;
@@ -438,8 +531,14 @@ function updateUI() {
   setText(timerDisplay, timeLeft.toFixed(1));
   setText(comboDisplay.querySelector("strong"), `×${chain}`);
   comboDisplay.classList.toggle("hot", chain > 1);
+  setText(depthDisplay, String(depth));
   pulseFill.style.width = `${pulseCharge}%`;
   setText(pulsePercent, `${Math.floor(pulseCharge)}%`);
+  boostFill.style.width = `${boostEnergy}%`;
+  setText(boostPercent, `${Math.round(boostEnergy)}%`);
+  boostMeter.classList.toggle("spent", boostEnergy < 20);
+  boostButton.classList.toggle("engaged", boosting);
+  boostButton.setAttribute("aria-pressed", String(boostLatched));
   const pulseDisabled = pulseCharge < 100 || gameState !== "playing";
   // Spending the pulse disables the button the player is standing on. Leave first.
   if (pulseDisabled && !pulseButton.disabled && gameState === "playing"
@@ -619,6 +718,27 @@ window.addEventListener("keydown", (event) => {
   keys.add(key);
 });
 window.addEventListener("keyup", (event) => keys.delete(event.key.length === 1 ? event.key.toLowerCase() : event.key));
+
+// Boost is a HELD state, so the button listens for the hold rather than the
+// click. The keyboard has no hold: a click with detail 0 came from Enter or
+// Space, and that path latches instead, or the button would be useless without
+// a mouse. preventDefault on pointerdown also stops the compatibility click, so
+// the two paths never both fire.
+boostButton.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  if (gameState !== "playing") return;
+  boostHeld = true;
+  boostButton.setPointerCapture?.(event.pointerId);
+});
+const releaseBoost = () => { boostHeld = false; };
+boostButton.addEventListener("pointerup", releaseBoost);
+boostButton.addEventListener("pointercancel", releaseBoost);
+boostButton.addEventListener("lostpointercapture", releaseBoost);
+boostButton.addEventListener("click", (event) => {
+  if (event.detail !== 0 || gameState !== "playing") return;
+  boostLatched = !boostLatched && boostEnergy > 0;
+  boostButton.setAttribute("aria-pressed", String(boostLatched));
+});
 // Same reason as visibilitychange: a key held while the window loses focus never
 // delivers its keyup.
 window.addEventListener("blur", () => keys.clear());

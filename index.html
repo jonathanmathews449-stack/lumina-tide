@@ -48,10 +48,11 @@
             <div><span class="rule-number">01</span><p>Gather drifting <strong>light motes</strong> to build your chain.</p></div>
             <div><span class="rule-number">02</span><p>Avoid the slow-blooming <strong>ink</strong> in the current.</p></div>
             <div><span class="rule-number">03</span><p>Release a charged <strong>pulse</strong> when the deep closes in.</p></div>
+            <div><span class="rule-number">04</span><p>Hold <strong>Shift</strong> to boost, and graze the ink to earn it back.</p></div>
           </div>
 
           <button class="primary-button" id="start-button" type="button"><span>Begin the dive</span><span class="button-orb" aria-hidden="true">→</span></button>
-          <p class="microcopy">Move with pointer, touch, WASD, or arrow keys · Space releases pulse</p>
+          <p class="microcopy">Move with pointer, touch, WASD or arrow keys · Shift boosts · Space releases pulse</p>
         </section>
 
         <section class="hud" id="hud" aria-label="Game status" hidden>
@@ -60,13 +61,23 @@
             <div class="energy" aria-label="Three energy points">
               <span class="energy-pip active"></span><span class="energy-pip active"></span><span class="energy-pip active"></span>
             </div>
+            <div class="depth"><span>Depth</span><strong id="depth">1</strong></div>
           </div>
           <div class="combo" id="combo"><span>Chain</span><strong>×1</strong></div>
-          <div class="pulse-meter">
-            <div class="pulse-copy"><span>Pulse</span><strong id="pulse-percent">0%</strong></div>
-            <div class="meter-track"><span id="pulse-fill"></span></div>
+          <div class="meters">
+            <div class="meter">
+              <div class="meter-copy"><span>Pulse</span><strong id="pulse-percent">0%</strong></div>
+              <div class="meter-track"><span id="pulse-fill"></span></div>
+            </div>
+            <div class="meter meter-boost">
+              <div class="meter-copy"><span>Boost</span><strong id="boost-percent">100%</strong></div>
+              <div class="meter-track"><span id="boost-fill"></span></div>
+            </div>
           </div>
-          <button class="pulse-button" id="pulse-button" type="button" disabled><span>Pulse</span><kbd>Space</kbd></button>
+          <div class="action-buttons">
+            <button class="action-button boost-button" id="boost-button" type="button" aria-pressed="false" aria-label="Hold to boost"><span>Boost</span><kbd>Shift</kbd></button>
+            <button class="action-button pulse-button" id="pulse-button" type="button" disabled><span>Pulse</span><kbd>Space</kbd></button>
+          </div>
         </section>
 
         <section class="pause-screen overlay" id="pause-screen" aria-labelledby="pause-title" hidden>
@@ -86,6 +97,8 @@
             <div><span>Light gathered</span><strong id="motes-collected">0</strong></div>
             <div><span>Best chain</span><strong id="best-chain">×1</strong></div>
             <div><span>Pulses</span><strong id="pulses-used">0</strong></div>
+            <div><span>Grazes</span><strong id="grazes">0</strong></div>
+            <div><span>Depth reached</span><strong id="depth-reached">1</strong></div>
           </div>
           <button class="primary-button compact" id="replay-button" type="button"><span>Dive again</span><span class="button-orb">↻</span></button>
         </section>
